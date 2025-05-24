@@ -18,7 +18,8 @@
     const { ethers } = window.ethers;
     const { useState, useEffect } = React;
 
-    const PARAMIFY_ADDRESS = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
+    // Update the contract address to the newly deployed one on localhost
+    const PARAMIFY_ADDRESS = "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
     const PARAMIFY_ABI = [
       {
         "inputs": [
@@ -634,7 +635,7 @@
         try {
           const provider = new ethers.BrowserProvider(window.ethereum);
           const signer = await provider.getSigner();
-          const contract = new ethers.Contract(INSURACLE_ADDRESS, INSURACLE_ABI, signer);
+          const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, signer);
           const mockContract = new ethers.Contract(
             await contract.priceFeed(),
             [
