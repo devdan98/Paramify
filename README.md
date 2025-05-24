@@ -4,7 +4,7 @@
 
 **Paramify** is a proof of concept (PoC) for a decentralized flood insurance platform built on Ethereum, demonstrating automated insurance purchases and payouts triggered by flood level data from a Chainlink-compatible oracle. This PoC showcases a smart contract (`Paramify.sol`) that allows users to buy flood insurance policies and claim payouts when flood levels exceed a predefined threshold, with role-based access control for secure administration.
 
-Designed for presentation to the Polkadot ecosystem, Paramify highlights the potential for decentralized insurance applications. While currently implemented on Ethereum using Hardhat, the architecture is adaptable to Polkadot parachains (e.g., Moonbeam for EVM compatibility or a native Substrate pallet with a custom oracle). This README provides instructions to set up, deploy, and demo the PoC locally, along with steps to test key features.
+Designed for the Avalanche Summit hackathon, Paramify highlights the potential for decentralized insurance applications. While currently implemented on Ethereum using Hardhat, the architecture is adaptable to Avalanche C-Chain or other EVM-compatible networks. This README provides instructions to set up, deploy, and demo the PoC locally, along with steps to test key features.
 
 ### Features
 - **Insurance Purchase**: Users buy policies by paying a premium (10% of coverage), e.g., 0.1 ETH for 1 ETH coverage.
@@ -13,11 +13,7 @@ Designed for presentation to the Polkadot ecosystem, Paramify highlights the pot
 - **Frontend Interface**: A React-based UI allows users to connect wallets, buy insurance, update flood levels, and trigger payouts.
 - **Mock Oracle**: A `MockV3Aggregator` simulates Chainlink flood level data for local testing.
 
-### Polkadot Relevance
-Paramify’s modular design makes it suitable for Polkadot parachains:
-- **Moonbeam**: Deploy Ethereum-compatible smart contracts with minimal changes.
-- **Substrate**: Reimplement as a pallet with Polkadot’s oracle solutions (e.g., Acala’s Oracle or custom off-chain workers).
-- **Cross-Chain**: Leverage Polkadot’s interoperability for multi-chain insurance pools or data feeds.
+
 
 ## Prerequisites
 
@@ -27,118 +23,115 @@ Paramify’s modular design makes it suitable for Polkadot parachains:
 - **Hardhat**: For contract deployment and testing.
 - **Python 3** (optional): For alternative frontend serving if `http-server` is unavailable.
 
-## Installation
 
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/your-username/paramify.git
-   cd paramify
-   ```
+## Quick Start: Choose Your Environment
 
-2. **Install Node.js Dependencies**:
-   ```bash
-   npm install
-   ```
-   - This installs Hardhat, Ethers.js, OpenZeppelin, Chainlink contracts, and other dependencies listed in `package.json`.
+This project can be run in either **GitHub Codespaces** (cloud) or on your **local machine**. Follow the instructions for your preferred environment below.
 
-3. **Install `http-server` for Frontend**:
-   ```bash
-   npm install -g http-server
-   ```
-   - Alternatively, use Python’s HTTP server (see Usage).
+---
 
-4. **Verify Hardhat Configuration**:
-   - Ensure `hardhat.config.js` is set up for the `localhost` network:
-     ```javascript
-     module.exports = {
-       solidity: "0.8.20",
-       networks: {
-         localhost: {
-           url: "http://127.0.0.1:8545",
-           chainId: 31337,
-         },
-       },
-     };
-     ```
+## A. GitHub Codespaces Deployment
 
-## Usage
+### 1. Clone and Install
+```bash
+git clone https://github.com/your-username/paramify.git
+cd paramify
+npm install
+npm install -g http-server
+```
 
-### 1. Start the Hardhat Node
-Run a local Ethereum node to deploy contracts and interact with the blockchain:
+### 2. Start the Hardhat Node
 ```bash
 npx hardhat node
 ```
-- This starts a node at `http://127.0.0.1:8545` with Chain ID 31337 and provides test accounts (e.g., deployer: `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`, customer: `0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199`).
+- This starts a node at `http://127.0.0.1:8545` (Chain ID 31337) and prints test accounts and private keys.
 
-### 2. Deploy Contracts
-Deploy the `MockV3Aggregator` and `Paramify` contracts:
+### 3. Deploy Contracts
 ```bash
 npx hardhat run scripts/deploy.js --network localhost
 ```
-- Output example:
-  ```
-  MockV3Aggregator deployed to: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-  Paramify deployed to: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-  ```
-- Update `frontend/index.html` with the new `Paramify` address in `PARAMIFY_ADDRESS`.
+- Note the deployed `Paramify` contract address. Update `frontend/index.html` with this address in `PARAMIFY_ADDRESS`.
 
-### 3. Fund the Contract
-The `Paramify` contract requires ETH to cover payouts. Fund it with 2 ETH:
+### 4. Fund the Contract
 ```bash
 npx hardhat run scripts/fund-contract.js --network localhost
 ```
-- Example script (`scripts/fund-contract.js`):
-  ```javascript
-  const { ethers } = require("hardhat");
+- This sends 2 ETH to the contract for payouts.
 
-  async function main() {
-    const [deployer] = await ethers.getSigners();
-    const contractAddress = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"; // Update with Paramify address
-    const amount = ethers.parseEther("2");
-
-    console.log("Funding contract with:", deployer.address);
-    const tx = await deployer.sendTransaction({
-      to: contractAddress,
-      value: amount,
-    });
-    await tx.wait();
-    console.log("Funded contract with 2 ETH, tx:", tx.hash);
-
-    const contract = await ethers.getContractAt("Paramify", contractAddress);
-    const balance = await contract.getContractBalance();
-    console.log("New Contract Balance:", ethers.formatEther(balance), "ETH");
-  }
-
-  main().catch(console.error);
-  ```
-- Output example:
-  ```
-  Funded contract with 2 ETH, tx: 0xc1c63a032e7ece1c09fb0db41e226dc1194d138f23d1e8e2f94b76d60a4d6182
-  New Contract Balance: 2.0 ETH
-  ```
-
-### 4. Serve the Frontend
-Serve the React frontend to interact with the contract:
+### 5. Serve the Frontend
 ```bash
 cd frontend
 http-server -p 8080
 ```
-- If `http-server` is unavailable, use Python:
+- If `http-server` is unavailable, use:
   ```bash
   python3 -m http.server 8080
   ```
-- Open `http://localhost:8080` in a browser with MetaMask installed.
+- In the Codespaces "Ports" tab, make port 8080 public. Open the resulting URL (e.g., `https://<random-id>-8080.app.github.dev`) in your browser.
 
-### 5. Configure MetaMask
-- Add the Hardhat network:
-  - Network Name: Hardhat
-  - RPC URL: `http://127.0.0.1:8545`
+### 6. Configure MetaMask
+- In the Codespaces "Ports" tab, make port 8545 public. Use the public URL (e.g., `https://<random-id>-8545.app.github.dev`) as the RPC URL in MetaMask.
+- In MetaMask, add a new network:
+  - Network Name: Hardhat (Codespace)
+  - New RPC URL: (your public 8545 URL)
   - Chain ID: 31337
   - Currency Symbol: ETH
-- Import test accounts (from Hardhat node output):
-  - Deployer: `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` (admin roles).
-  - Customer: `0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199` (no admin roles).
-  - Use private keys from the Hardhat node console (e.g., `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80` for deployer).
+- Import test accounts using private keys from the Hardhat node output (see terminal logs).
+- Update `frontend/index.html` with the correct `PARAMIFY_ADDRESS` if you redeploy contracts.
+
+---
+
+## B. Local Machine Deployment
+
+### 1. Clone and Install
+```bash
+git clone https://github.com/your-username/paramify.git
+cd paramify
+npm install
+npm install -g http-server
+```
+
+### 2. Start the Hardhat Node
+```bash
+npx hardhat node
+```
+- This starts a node at `http://127.0.0.1:8545` (Chain ID 31337) and prints test accounts and private keys.
+
+### 3. Deploy Contracts
+```bash
+npx hardhat run scripts/deploy.js --network localhost
+```
+- Note the deployed `Paramify` contract address. Update `frontend/index.html` with this address in `PARAMIFY_ADDRESS`.
+
+### 4. Fund the Contract
+```bash
+npx hardhat run scripts/fund-contract.js --network localhost
+```
+- This sends 2 ETH to the contract for payouts.
+
+### 5. Serve the Frontend
+```bash
+cd frontend
+http-server -p 8080
+```
+- If `http-server` is unavailable, use:
+  ```bash
+  python3 -m http.server 8080
+  ```
+- Open [http://localhost:8080](http://localhost:8080) in your browser.
+
+### 6. Configure MetaMask
+- In MetaMask, add a new network:
+  - Network Name: Hardhat (Local)
+  - New RPC URL: `http://127.0.0.1:8545`
+  - Chain ID: 31337
+  - Currency Symbol: ETH
+- Import test accounts using private keys from the Hardhat node output (see terminal logs).
+- Update `frontend/index.html` with the correct `PARAMIFY_ADDRESS` if you redeploy contracts.
+
+---
+
+**Note:** For both environments, always update the frontend contract address after redeployment. The address in `frontend/index.html` must match the deployed contract.
 
 ## Demo Instructions
 
@@ -242,36 +235,35 @@ paramify/
 
 ## Future Enhancements
 
-- **Polkadot Integration**:
-  - Deploy on Moonbeam for EVM compatibility.
-  - Develop a Substrate pallet with Polkadot’s oracle solutions.
-  - Use XCM for cross-chain insurance pools.
+- **Avalanche Integration**:
+  - Deploy on Avalanche C-Chain for EVM compatibility.
+  - Integrate with Avalanche-native oracles for real-world data.
 - **Real Oracle Data**: Replace `MockV3Aggregator` with Chainlink’s flood level data feed.
 - **Multi-Policy Support**: Allow users to hold multiple policies.
 - **Frontend Polish**: Add a custom logo, improve UX, and support mobile views.
 
+
 ## Troubleshooting
 
-- **http-server not found**:
+- **http-server not found:**
   - Install: `npm install -g http-server`.
   - Alternative: `python3 -m http.server 8080`.
-- **Contract Funding Fails**:
+- **Frontend/MetaMask not connecting in Codespaces:**
+  - Make sure both ports 8080 (frontend) and 8545 (Hardhat node) are public in the Codespaces "Ports" tab.
+  - Use the public URLs in your browser and MetaMask.
+- **Contract Funding Fails:**
   - Ensure `Paramify.sol` has `receive() external payable {}`.
   - Redeploy if necessary: `npx hardhat run scripts/deploy.js --network localhost`.
-- **Payout Fails**:
+- **Payout Fails:**
   - Check contract balance (`getContractBalance`): Must be ≥ coverage (e.g., 1 ETH).
   - Verify flood level ≥ 3000 units.
-- **MetaMask Issues**:
+- **MetaMask Issues:**
   - Ensure Hardhat network is added and accounts are imported.
 
 ## License
 
 MIT License. See [LICENSE](./LICENSE) for details.
 
-## Contact
-
-For questions or feedback, open an issue on GitHub or contact the team at [your-email@example.com].
-
 ---
 
-*Presented as a proof of concept for Polkadot, May 2025.*
+*Presented as a proof of concept for the Avalanche Summit Hackathon, May 2025.*

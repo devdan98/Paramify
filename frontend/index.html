@@ -18,8 +18,8 @@
     const { ethers } = window.ethers;
     const { useState, useEffect } = React;
 
-    const INSURACLE_ADDRESS = "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c"
-    const INSURACLE_ABI = [
+    const PARAMIFY_ADDRESS = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
+    const PARAMIFY_ABI = [
       {
         "inputs": [
           {
@@ -539,7 +539,7 @@
         if (!account) return;
         try {
           const provider = new ethers.BrowserProvider(window.ethereum);
-          const contract = new ethers.Contract(INSURACLE_ADDRESS, INSURACLE_ABI, provider);
+          const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, provider);
 
           // Fetch flood level
           const level = await contract.getLatestPrice();
@@ -595,7 +595,7 @@
         try {
           const provider = new ethers.BrowserProvider(window.ethereum);
           const signer = await provider.getSigner();
-          const contract = new ethers.Contract(INSURACLE_ADDRESS, INSURACLE_ABI, signer);
+          const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, signer);
 
           const coverage = ethers.parseEther(coverageInput);
           const premium = coverage / BigInt(10);
@@ -616,7 +616,7 @@
         try {
           const provider = new ethers.BrowserProvider(window.ethereum);
           const signer = await provider.getSigner();
-          const contract = new ethers.Contract(INSURACLE_ADDRESS, INSURACLE_ABI, signer);
+          const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, signer);
 
           setTxStatus("Triggering payout...");
           const tx = await contract.triggerPayout();
@@ -671,7 +671,7 @@
           const amount = ethers.parseEther(fundAmount);
           setTxStatus("Funding contract...");
           const tx = await signer.sendTransaction({
-            to: INSURACLE_ADDRESS,
+            to: PARAMIFY_ADDRESS,
             value: amount,
           });
           await tx.wait();
@@ -690,8 +690,8 @@
 
       return (
         <div className="bg-white p-8 rounded-lg shadow-lg max-w-lg w-full">
-          <img src="https://via.placeholder.com/300x100?text=Insuracle+Logo" alt="Insuracle Logo" className="mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-4 text-center">Insuracle: Flood Insurance Oracle</h1>
+          <img src="https://via.placeholder.com/300x100?text=Paramify+Logo" alt="Paramify Logo" className="mx-auto mb-4" />
+          <h1 className="text-2xl font-bold mb-4 text-center">Paramify: Flood Insurance Oracle</h1>
           <p className="text-gray-600 mb-6 text-center">
             Buy flood insurance and claim payouts if flood levels exceed the threshold.
           </p>
