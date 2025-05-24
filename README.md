@@ -1,10 +1,10 @@
-# Insuracle: Decentralized Flood Insurance Proof of Concept
+# Paramify: Decentralized Flood Insurance Proof of Concept
 
 ## Overview
 
-**Insuracle** is a proof of concept (PoC) for a decentralized flood insurance platform built on Ethereum, demonstrating automated insurance purchases and payouts triggered by flood level data from a Chainlink-compatible oracle. This PoC showcases a smart contract (`Insuracle.sol`) that allows users to buy flood insurance policies and claim payouts when flood levels exceed a predefined threshold, with role-based access control for secure administration.
+**Paramify** is a proof of concept (PoC) for a decentralized flood insurance platform built on Ethereum, demonstrating automated insurance purchases and payouts triggered by flood level data from a Chainlink-compatible oracle. This PoC showcases a smart contract (`Paramify.sol`) that allows users to buy flood insurance policies and claim payouts when flood levels exceed a predefined threshold, with role-based access control for secure administration.
 
-Designed for presentation to the Polkadot ecosystem, Insuracle highlights the potential for decentralized insurance applications. While currently implemented on Ethereum using Hardhat, the architecture is adaptable to Polkadot parachains (e.g., Moonbeam for EVM compatibility or a native Substrate pallet with a custom oracle). This README provides instructions to set up, deploy, and demo the PoC locally, along with steps to test key features.
+Designed for presentation to the Polkadot ecosystem, Paramify highlights the potential for decentralized insurance applications. While currently implemented on Ethereum using Hardhat, the architecture is adaptable to Polkadot parachains (e.g., Moonbeam for EVM compatibility or a native Substrate pallet with a custom oracle). This README provides instructions to set up, deploy, and demo the PoC locally, along with steps to test key features.
 
 ### Features
 - **Insurance Purchase**: Users buy policies by paying a premium (10% of coverage), e.g., 0.1 ETH for 1 ETH coverage.
@@ -14,7 +14,7 @@ Designed for presentation to the Polkadot ecosystem, Insuracle highlights the po
 - **Mock Oracle**: A `MockV3Aggregator` simulates Chainlink flood level data for local testing.
 
 ### Polkadot Relevance
-Insuracle’s modular design makes it suitable for Polkadot parachains:
+Paramify’s modular design makes it suitable for Polkadot parachains:
 - **Moonbeam**: Deploy Ethereum-compatible smart contracts with minimal changes.
 - **Substrate**: Reimplement as a pallet with Polkadot’s oracle solutions (e.g., Acala’s Oracle or custom off-chain workers).
 - **Cross-Chain**: Leverage Polkadot’s interoperability for multi-chain insurance pools or data feeds.
@@ -31,8 +31,8 @@ Insuracle’s modular design makes it suitable for Polkadot parachains:
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/your-username/insuracle.git
-   cd insuracle
+   git clone https://github.com/your-username/paramify.git
+   cd paramify
    ```
 
 2. **Install Node.js Dependencies**:
@@ -71,19 +71,19 @@ npx hardhat node
 - This starts a node at `http://127.0.0.1:8545` with Chain ID 31337 and provides test accounts (e.g., deployer: `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`, customer: `0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199`).
 
 ### 2. Deploy Contracts
-Deploy the `MockV3Aggregator` and `Insuracle` contracts:
+Deploy the `MockV3Aggregator` and `Paramify` contracts:
 ```bash
 npx hardhat run scripts/deploy.js --network localhost
 ```
 - Output example:
   ```
   MockV3Aggregator deployed to: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-  Insuracle deployed to: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+  Paramify deployed to: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
   ```
-- Update `frontend/index.html` with the new `Insuracle` address in `INSURACLE_ADDRESS`.
+- Update `frontend/index.html` with the new `Paramify` address in `PARAMIFY_ADDRESS`.
 
 ### 3. Fund the Contract
-The `Insuracle` contract requires ETH to cover payouts. Fund it with 2 ETH:
+The `Paramify` contract requires ETH to cover payouts. Fund it with 2 ETH:
 ```bash
 npx hardhat run scripts/fund-contract.js --network localhost
 ```
@@ -93,7 +93,7 @@ npx hardhat run scripts/fund-contract.js --network localhost
 
   async function main() {
     const [deployer] = await ethers.getSigners();
-    const contractAddress = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"; // Update with Insuracle address
+    const contractAddress = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"; // Update with Paramify address
     const amount = ethers.parseEther("2");
 
     console.log("Funding contract with:", deployer.address);
@@ -104,7 +104,7 @@ npx hardhat run scripts/fund-contract.js --network localhost
     await tx.wait();
     console.log("Funded contract with 2 ETH, tx:", tx.hash);
 
-    const contract = await ethers.getContractAt("Insuracle", contractAddress);
+    const contract = await ethers.getContractAt("Paramify", contractAddress);
     const balance = await contract.getContractBalance();
     console.log("New Contract Balance:", ethers.formatEther(balance), "ETH");
   }
@@ -189,7 +189,7 @@ npx hardhat run scripts/check-policy.js --network localhost
 
   async function main() {
     const customer = "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199";
-    const contract = await ethers.getContractAt("Insuracle", "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512");
+    const contract = await ethers.getContractAt("Paramify", "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512");
     const policy = await contract.policies(customer);
     console.log("Policy:", {
       active: policy.active,
@@ -209,9 +209,9 @@ npx hardhat run scripts/check-policy.js --network localhost
 ## Project Structure
 
 ```
-insuracle/
+paramify/
 ├── contracts/
-│   ├── Insuracle.sol          # Main insurance contract
+│   ├── Paramify.sol          # Main insurance contract
 │   └── mocks/
 │       └── MockV3Aggregator.sol # Mock Chainlink oracle
 ├── scripts/
@@ -221,7 +221,7 @@ insuracle/
 ├── frontend/
 │   └── index.html             # React frontend
 ├── test/
-│   └── Insuracle.test.js      # Unit tests
+│   └── Paramify.test.js      # Unit tests
 ├── hardhat.config.js          # Hardhat configuration
 ├── package.json               # Node.js dependencies
 └── README.md                  # This file
@@ -256,7 +256,7 @@ insuracle/
   - Install: `npm install -g http-server`.
   - Alternative: `python3 -m http.server 8080`.
 - **Contract Funding Fails**:
-  - Ensure `Insuracle.sol` has `receive() external payable {}`.
+  - Ensure `Paramify.sol` has `receive() external payable {}`.
   - Redeploy if necessary: `npx hardhat run scripts/deploy.js --network localhost`.
 - **Payout Fails**:
   - Check contract balance (`getContractBalance`): Must be ≥ coverage (e.g., 1 ETH).

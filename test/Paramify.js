@@ -2,7 +2,8 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe("Insuracle", function () {
-  let Insuracle, insuracle, MockPriceFeed, mockPriceFeed, owner;
+describe("Paramify", function () {
+  let Paramify, paramify, MockPriceFeed, mockPriceFeed, owner;
 
   beforeEach(async function () {
     [owner] = await ethers.getSigners();
@@ -28,19 +29,19 @@ describe("Insuracle", function () {
       throw error;
     }
 
-    // Deploy Insuracle
+    // Deploy Paramify
     const priceFeedAddress = await mockPriceFeed.getAddress();
-    console.log("Deploying Insuracle with price feed:", priceFeedAddress);
+    console.log("Deploying Paramify with price feed:", priceFeedAddress);
     try {
-      Insuracle = await ethers.getContractFactory("Insuracle");
-      console.log("Insuracle factory obtained:", !!Insuracle);
-      insuracle = await Insuracle.deploy(priceFeedAddress);
-      const deployTx = await insuracle.deploymentTransaction();
-      console.log("Insuracle deployment transaction sent:", deployTx ? deployTx.hash : "N/A");
-      await insuracle.waitForDeployment();
-      console.log("Insuracle deployed at:", await insuracle.getAddress());
+      Paramify = await ethers.getContractFactory("Paramify");
+      console.log("Paramify factory obtained:", !!Paramify);
+      paramify = await Paramify.deploy(priceFeedAddress);
+      const deployTx = await paramify.deploymentTransaction();
+      console.log("Paramify deployment transaction sent:", deployTx ? deployTx.hash : "N/A");
+      await paramify.waitForDeployment();
+      console.log("Paramify deployed at:", await paramify.getAddress());
     } catch (error) {
-      console.error("Error deploying Insuracle:", error.message);
+      console.error("Error deploying Paramify:", error.message);
       if (error.transaction) {
         console.error("Transaction data:", error.transaction);
         const txResponse = await ethers.provider.getTransaction(error.transaction.hash);
@@ -51,13 +52,13 @@ describe("Insuracle", function () {
   });
 
   it("should assign roles correctly", async function () {
-    expect(await insuracle.hasRole(await insuracle.DEFAULT_ADMIN_ROLE(), owner.address)).to.be.true;
-    expect(await insuracle.hasRole(await insuracle.ORACLE_UPDATER_ROLE(), owner.address)).to.be.true;
-    expect(await insuracle.hasRole(await insuracle.INSURANCE_ADMIN_ROLE(), owner.address)).to.be.true;
+    expect(await paramify.hasRole(await paramify.DEFAULT_ADMIN_ROLE(), owner.address)).to.be.true;
+    expect(await paramify.hasRole(await paramify.ORACLE_UPDATER_ROLE(), owner.address)).to.be.true;
+    expect(await paramify.hasRole(await paramify.INSURANCE_ADMIN_ROLE(), owner.address)).to.be.true;
   });
 
   it("should fetch latest price", async function () {
-    const price = await insuracle.getLatestPrice();
+    const price = await paramify.getLatestPrice();
     expect(price).to.equal(2000e8);
   });
 });

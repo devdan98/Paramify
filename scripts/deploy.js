@@ -10,11 +10,11 @@ async function main() {
   await mockPriceFeed.waitForDeployment();
   console.log("MockV3Aggregator deployed to:", await mockPriceFeed.getAddress());
 
-  // Deploy Insuracle
-  const Insuracle = await ethers.getContractFactory("Insuracle");
-  const insuracle = await Insuracle.deploy(await mockPriceFeed.getAddress());
-  await insuracle.waitForDeployment();
-  console.log("Insuracle deployed to:", await insuracle.getAddress());
+  // Deploy Paramify
+  const Paramify = await ethers.getContractFactory("Paramify");
+  const paramify = await Paramify.deploy(await mockPriceFeed.getAddress());
+  await paramify.waitForDeployment();
+  console.log("Paramify deployed to:", await paramify.getAddress());
 }
 
 main()
