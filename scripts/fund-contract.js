@@ -2,7 +2,7 @@ const { ethers } = require("hardhat");
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const contractAddress = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"; // Replace with new Paramify address
+  const contractAddress = "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"; // Replace with new Paramify address
   const amount = ethers.parseEther("2");
 
   console.log("Funding contract with:", deployer.address);

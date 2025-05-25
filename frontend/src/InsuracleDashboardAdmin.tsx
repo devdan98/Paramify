@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { Waves, Shield, TrendingUp, Wallet, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
-import { PARAMIFY_ADDRESS, PARAMIFY_ABI } from './lib/contract';
+import { PARAMIFY_ADDRESS, PARAMIFY_ABI, MOCK_ORACLE_ADDRESS, MOCK_ORACLE_ABI } from './lib/contract';
 
 interface ParamifyDashboardProps {
   setUserType?: (userType: string | null) => void;
@@ -17,6 +17,7 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
   const [insuranceAmount, setInsuranceAmount] = useState<number>(0);
   const [contractBalance, setContractBalance] = useState<number>(0);
   const [fundAmount, setFundAmount] = useState<string>("");
+  const [newFloodLevel, setNewFloodLevel] = useState<string>("");
   const [transactionStatus, setTransactionStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdatingFlood, setIsUpdatingFlood] = useState(false);
@@ -26,18 +27,32 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
   useEffect(() => {
     const fetchData = async () => {
       if (window.ethereum) {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const accounts = await provider.send('eth_requestAccounts', []);
-        setWalletAddress(accounts[0]);
-        const balance = await provider.getBalance(accounts[0]);
-        setEthBalance(Number(ethers.formatEther(balance)));
-        const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, provider);
         try {
-          const contractBal = await contract.getContractBalance();
-          setContractBalance(Number(ethers.formatEther(contractBal)));
-          const latestFlood = await contract.getLatestPrice();
-          setFloodLevel(Number(latestFlood) / 1e8);
-        } catch (e) {}
+          // Ensure we're on the correct network
+          await switchToLocalNetwork();
+          
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const network = await provider.getNetwork();
+          console.log('Connected to network:', network.chainId);
+          
+          const accounts = await provider.send('eth_requestAccounts', []);
+          setWalletAddress(accounts[0]);
+          const balance = await provider.getBalance(accounts[0]);
+          setEthBalance(Number(ethers.formatEther(balance)));
+          
+          const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, provider);
+          try {
+            const contractBal = await contract.getContractBalance();
+            setContractBalance(Number(ethers.formatEther(contractBal)));
+            const latestFlood = await contract.getLatestPrice();
+            setFloodLevel(Number(latestFlood) / 1e8);
+          } catch (e) {
+            console.log('Contract calls failed, contract may not be deployed yet:', e);
+          }
+        } catch (e) {
+          console.error('Failed to connect to network:', e);
+          setTransactionStatus('Please connect to Hardhat Local network (Chain ID: 31337)');
+        }
       }
     };
     fetchData();
@@ -52,24 +67,29 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
   };
 
   const handleUpdateFloodLevel = async () => {
-    if (!window.ethereum || !fundAmount) return;
+    if (!window.ethereum || !newFloodLevel) return;
     setIsUpdatingFlood(true);
     setTransactionStatus('Updating flood level...');
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-      const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, signer);
-      // Assume contract has setFloodLevel(uint256) or similar
-      const tx = await contract.setFloodLevel(parseFloat(fundAmount));
+      const mockOracleContract = new ethers.Contract(MOCK_ORACLE_ADDRESS, MOCK_ORACLE_ABI, signer);
+      // Convert flood level to proper format (8 decimals)
+      const floodLevelFormatted = Math.floor(parseFloat(newFloodLevel) * 1e8);
+      const tx = await mockOracleContract.updateAnswer(floodLevelFormatted);
       await tx.wait();
       setTransactionStatus('Flood level updated successfully!');
-      const latestFlood = await contract.getLatestPrice();
+      // Refresh the flood level display
+      const paramifyContract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, provider);
+      const latestFlood = await paramifyContract.getLatestPrice();
       setFloodLevel(Number(latestFlood) / 1e8);
-    } catch (e) {
-      setTransactionStatus('Flood update failed!');
+      setNewFloodLevel(""); // Clear the input after successful update
+    } catch (e: any) {
+      console.error('Flood level update error:', e);
+      setTransactionStatus(`Flood update failed! ${e.reason || e.message || 'Unknown error'}`);
     }
     setIsUpdatingFlood(false);
-    setTimeout(() => setTransactionStatus(''), 3000);
+    setTimeout(() => setTransactionStatus(''), 5000);
   };
 
   const handleBuyInsurance = async () => {
@@ -80,7 +100,9 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, signer);
-      const tx = await contract.buyInsurance({ value: ethers.parseEther(premium.toString()) });
+      const coverage = ethers.parseEther(coverageAmount);
+      const calculatedPremium = ethers.parseEther(premium.toString());
+      const tx = await contract.buyInsurance(coverage, { value: calculatedPremium });
       await tx.wait();
       setTransactionStatus('Insurance purchased successfully!');
       setHasActivePolicy(true);
@@ -89,11 +111,12 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
       setEthBalance(Number(ethers.formatEther(balance)));
       const contractBal = await contract.getContractBalance();
       setContractBalance(Number(ethers.formatEther(contractBal)));
-    } catch (e) {
-      setTransactionStatus('Insurance purchase failed!');
+    } catch (e: any) {
+      console.error('Insurance purchase error:', e);
+      setTransactionStatus(`Insurance purchase failed! ${e.reason || e.message || 'Unknown error'}`);
     }
     setIsLoading(false);
-    setTimeout(() => setTransactionStatus(''), 3000);
+    setTimeout(() => setTransactionStatus(''), 5000);
   };
 
   const handleFundContract = async () => {
@@ -101,21 +124,140 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
     setIsFunding(true);
     setTransactionStatus('Funding contract...');
     try {
+      // Ensure we're on the correct network first
+      await switchToLocalNetwork();
+      
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-      const tx = await signer.sendTransaction({ to: PARAMIFY_ADDRESS, value: ethers.parseEther(fundAmount) });
+      
+      // Check network
+      const network = await provider.getNetwork();
+      if (network.chainId !== 31337n) {
+        throw new Error('Please switch to Hardhat Local network (Chain ID: 31337)');
+      }
+      
+      // Check if the contract exists at the address
+      const code = await provider.getCode(PARAMIFY_ADDRESS);
+      if (code === '0x') {
+        throw new Error('Contract not found at address. Please ensure the contract is deployed.');
+      }
+      
+      // Estimate gas first
+      const gasEstimate = await provider.estimateGas({
+        to: PARAMIFY_ADDRESS,
+        value: ethers.parseEther(fundAmount),
+        from: await signer.getAddress()
+      });
+      
+      // Send transaction with estimated gas
+      const tx = await signer.sendTransaction({ 
+        to: PARAMIFY_ADDRESS, 
+        value: ethers.parseEther(fundAmount),
+        gasLimit: gasEstimate * 120n / 100n // Add 20% buffer
+      });
+      
       await tx.wait();
       setTransactionStatus('Contract funded successfully!');
+      
       const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, provider);
       const contractBal = await contract.getContractBalance();
       setContractBalance(Number(ethers.formatEther(contractBal)));
       const balance = await provider.getBalance(walletAddress);
       setEthBalance(Number(ethers.formatEther(balance)));
-    } catch (e) {
-      setTransactionStatus('Funding failed!');
+      setFundAmount(""); // Clear the input after successful funding
+    } catch (e: any) {
+      console.error('Funding error:', e);
+      let errorMessage = 'Unknown error';
+      if (e.message) {
+        errorMessage = e.message;
+      } else if (e.reason) {
+        errorMessage = e.reason;
+      } else if (e.code === 'CALL_EXCEPTION') {
+        errorMessage = 'Transaction failed - contract may not be deployed or network issue';
+      } else if (e.code === 'UNKNOWN_ERROR' && e.message?.includes('404')) {
+        errorMessage = 'Network connection failed. Please ensure you are connected to Hardhat Local network';
+      }
+      setTransactionStatus(`Funding failed! ${errorMessage}`);
     }
     setIsFunding(false);
-    setTimeout(() => setTransactionStatus(''), 3000);
+    setTimeout(() => setTransactionStatus(''), 5000);
+  };
+
+  const handleTriggerPayout = async () => {
+    if (!window.ethereum) return;
+    setIsLoading(true);
+    setTransactionStatus('Triggering payout...');
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, signer);
+      const tx = await contract.triggerPayout();
+      await tx.wait();
+      setTransactionStatus('Payout triggered successfully!');
+      setHasActivePolicy(false);
+      setInsuranceAmount(0);
+      // Update balances
+      const balance = await provider.getBalance(walletAddress);
+      setEthBalance(Number(ethers.formatEther(balance)));
+      const contractBal = await contract.getContractBalance();
+      setContractBalance(Number(ethers.formatEther(contractBal)));
+    } catch (e: any) {
+      console.error('Payout trigger error:', e);
+      setTransactionStatus(`Payout failed! ${e.reason || e.message || 'Unknown error'}`);
+    }
+    setIsLoading(false);
+    setTimeout(() => setTransactionStatus(''), 5000);
+  };
+
+  const addLocalNetwork = async () => {
+    if (!window.ethereum) return;
+    
+    // Detect if we're in Codespaces
+    const isCodespaces = window.location.hostname.includes('app.github.dev') || 
+                        window.location.hostname.includes('github.dev');
+    
+    const rpcUrl = isCodespaces 
+      ? 'https://expert-couscous-4j6674wqj9jr2q7xx-8545.app.github.dev'
+      : 'http://localhost:8545';
+    
+    try {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: '0x7a69', // 31337 in hex
+          chainName: 'Hardhat Local',
+          nativeCurrency: {
+            name: 'ETH',
+            symbol: 'ETH',
+            decimals: 18
+          },
+          rpcUrls: [rpcUrl],
+          blockExplorerUrls: null
+        }]
+      });
+      setTransactionStatus(`Network added with RPC: ${rpcUrl}`);
+    } catch (error) {
+      console.error('Failed to add network:', error);
+      setTransactionStatus(`Failed to add network. RPC URL: ${rpcUrl}`);
+    }
+  };
+
+  const switchToLocalNetwork = async () => {
+    if (!window.ethereum) return;
+    
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x7a69' }]
+      });
+    } catch (error) {
+      if (error.code === 4902) {
+        // Network not added yet, add it
+        await addLocalNetwork();
+      } else {
+        console.error('Failed to switch network:', error);
+      }
+    }
   };
 
   const roleStatuses = [
@@ -160,6 +302,26 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
 
 
         <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-8 shadow-2xl">
+          {/* Network connection status */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between bg-black/20 rounded-lg p-4">
+              <div className="flex flex-col">
+                <span className="text-white font-medium">Network Status</span>
+                <span className="text-gray-400 text-xs mt-1">
+                  RPC: {window.location.hostname.includes('app.github.dev') || window.location.hostname.includes('github.dev') 
+                    ? 'Codespaces URL' 
+                    : 'localhost:8545'}
+                </span>
+              </div>
+              <button
+                onClick={switchToLocalNetwork}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition-all duration-200"
+              >
+                Connect to Hardhat Local
+              </button>
+            </div>
+          </div>
+
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
@@ -199,14 +361,14 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
                 <div className="space-y-3">
                   <input
                     type="number"
-                    value={fundAmount}
-                    onChange={(e) => setFundAmount(e.target.value)}
+                    value={newFloodLevel}
+                    onChange={(e) => setNewFloodLevel(e.target.value)}
                     className="w-full bg-black/30 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="New flood level"
                   />
                   <button
                     onClick={handleUpdateFloodLevel}
-                    disabled={isUpdatingFlood || !fundAmount}
+                    disabled={isUpdatingFlood || !newFloodLevel}
                     className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
                   >
                     {isUpdatingFlood ? (
@@ -235,6 +397,25 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
                   <div className="space-y-2">
                     <p className="text-white"><span className="text-green-300">Coverage:</span> {insuranceAmount.toFixed(1)} ETH</p>
                     <p className="text-white"><span className="text-green-300">Status:</span> Active</p>
+                    {floodLevel >= 3000 && (
+                      <div className="mt-4">
+                        <button
+                          onClick={handleTriggerPayout}
+                          disabled={isLoading}
+                          className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
+                        >
+                          {isLoading ? (
+                            <div className="flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Triggering...
+                            </div>
+                          ) : (
+                            '🚨 Trigger Emergency Payout'
+                          )}
+                        </button>
+                        <p className="text-red-300 text-sm mt-2">⚠️ Flood threshold exceeded - payout available</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (

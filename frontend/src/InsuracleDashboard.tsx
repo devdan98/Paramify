@@ -19,23 +19,64 @@ export default function InsuracleDashboard({ setUserType }: InsuracleDashboardPr
   const [transactionStatus, setTransactionStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [hasActivePolicy, setHasActivePolicy] = useState(false);
+  const [networkError, setNetworkError] = useState(false);
 
   // Connect wallet and fetch initial data
   useEffect(() => {
     const fetchData = async () => {
       if (window.ethereum) {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const accounts = await provider.send('eth_requestAccounts', []);
-        setWalletAddress(accounts[0]);
-        const balance = await provider.getBalance(accounts[0]);
-        setEthBalance(Number(ethers.formatEther(balance)));
-        const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, provider);
         try {
-          const contractBal = await contract.getContractBalance();
-          setContractBalance(Number(ethers.formatEther(contractBal)));
-          const latestFlood = await contract.getLatestPrice();
-          setFloodLevel(Number(latestFlood) / 1e8); // assuming 8 decimals
-        } catch (e) {}
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          
+          // Check network
+          const network = await provider.getNetwork();
+          if (network.chainId !== 31337n) { // Hardhat network chainId
+            setNetworkError(true);
+            setTransactionStatus('Please connect to Hardhat network (localhost:8545, Chain ID: 31337)');
+            return;
+          } else {
+            setNetworkError(false);
+          }
+          
+          const accounts = await provider.send('eth_requestAccounts', []);
+          setWalletAddress(accounts[0]);
+          const balance = await provider.getBalance(accounts[0]);
+          setEthBalance(Number(ethers.formatEther(balance)));
+          
+          const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, provider);
+          
+          // Get contract balance
+          try {
+            const contractBal = await contract.getContractBalance();
+            setContractBalance(Number(ethers.formatEther(contractBal)));
+          } catch (e) {
+            console.warn('Could not fetch contract balance:', e);
+          }
+          
+          // Get flood level
+          try {
+            const latestFlood = await contract.getLatestPrice();
+            setFloodLevel(Number(latestFlood) / 1e8); // assuming 8 decimals
+          } catch (e) {
+            console.warn('Could not fetch flood level:', e);
+          }
+          
+          // Check if user has active policy
+          try {
+            const policy = await contract.policies(accounts[0]);
+            if (policy.customer !== "0x0000000000000000000000000000000000000000" && policy.active) {
+              setHasActivePolicy(true);
+              setInsuranceAmount(Number(ethers.formatEther(policy.coverage)));
+              setPolicyAmount(Number(ethers.formatEther(policy.coverage)));
+              setPremium(Number(ethers.formatEther(policy.premium)));
+            }
+          } catch (e) {
+            console.warn('Could not fetch policy:', e);
+          }
+        } catch (e) {
+          console.error('Error connecting to wallet:', e);
+          setTransactionStatus('Error connecting to wallet. Make sure MetaMask is installed and connected to localhost:8545');
+        }
       }
     };
     fetchData();
@@ -47,29 +88,153 @@ export default function InsuracleDashboard({ setUserType }: InsuracleDashboardPr
 
   // Buy insurance (send tx)
   const handleBuyInsurance = async () => {
-    if (!window.ethereum) return;
+    if (!window.ethereum) {
+      setTransactionStatus('MetaMask not detected. Please install MetaMask.');
+      return;
+    }
+    
+    if (policyAmount <= 0) {
+      setTransactionStatus('Please enter a valid policy amount.');
+      return;
+    }
+    
     setIsLoading(true);
-    setTransactionStatus('Sending transaction...');
+    setTransactionStatus('Preparing transaction...');
+    
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, signer);
-      const calculatedPremium = 0.1 * policyAmount;
-      const tx = await contract.buyInsurance({ value: ethers.parseEther(calculatedPremium.toString()) });
+      
+      const coverage = ethers.parseEther(policyAmount.toString());
+      const calculatedPremium = ethers.parseEther((0.1 * policyAmount).toString());
+      
+      console.log('Calling buyInsurance with coverage:', coverage.toString(), 'and premium:', calculatedPremium.toString());
+      
+      setTransactionStatus('Estimating gas...');
+      
+      // First estimate gas to catch any revert early
+      try {
+        await contract.buyInsurance.estimateGas(coverage, { value: calculatedPremium });
+      } catch (gasError) {
+        console.error('Gas estimation failed:', gasError);
+        throw new Error(`Transaction would fail: ${gasError.reason || gasError.message || 'Unknown error'}`);
+      }
+      
+      setTransactionStatus('Sending transaction...');
+      const tx = await contract.buyInsurance(coverage, { value: calculatedPremium });
+      
+      setTransactionStatus('Transaction sent. Waiting for confirmation...');
       await tx.wait();
+      
       setTransactionStatus('Transaction successful!');
       setHasActivePolicy(true);
       setInsuranceAmount(policyAmount);
+      
       // Update balances
       const balance = await provider.getBalance(walletAddress);
       setEthBalance(Number(ethers.formatEther(balance)));
       const contractBal = await contract.getContractBalance();
       setContractBalance(Number(ethers.formatEther(contractBal)));
-    } catch (e) {
-      setTransactionStatus('Transaction failed!');
+      
+    } catch (e: any) {
+      console.error('Transaction error:', e);
+      let errorMessage = 'Unknown error';
+      
+      if (e.reason) {
+        errorMessage = e.reason;
+      } else if (e.message) {
+        if (e.message.includes('user rejected')) {
+          errorMessage = 'Transaction rejected by user';
+        } else if (e.message.includes('insufficient funds')) {
+          errorMessage = 'Insufficient funds for transaction';
+        } else {
+          errorMessage = e.message;
+        }
+      }
+      
+      setTransactionStatus(`Transaction failed: ${errorMessage}`);
     }
+    
     setIsLoading(false);
-    setTimeout(() => setTransactionStatus(''), 3000);
+    setTimeout(() => setTransactionStatus(''), 10000);
+  };
+
+  // Trigger payout (send tx)
+  const handleTriggerPayout = async () => {
+    if (!window.ethereum) {
+      setTransactionStatus('MetaMask not detected. Please install MetaMask.');
+      return;
+    }
+    
+    setIsLoading(true);
+    setTransactionStatus('Checking payout conditions...');
+    
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, signer);
+      
+      // Check if conditions are met for payout
+      const currentFlood = await contract.getLatestPrice();
+      const floodLevelValue = Number(currentFlood) / 1e8;
+      
+      if (floodLevelValue < 3000) {
+        setTransactionStatus('Payout conditions not met. Flood level must exceed threshold.');
+        setIsLoading(false);
+        setTimeout(() => setTransactionStatus(''), 5000);
+        return;
+      }
+      
+      setTransactionStatus('Estimating gas...');
+      
+      // Estimate gas first
+      try {
+        await contract.triggerPayout.estimateGas();
+      } catch (gasError) {
+        console.error('Gas estimation failed:', gasError);
+        throw new Error(`Payout would fail: ${gasError.reason || gasError.message || 'Unknown error'}`);
+      }
+      
+      setTransactionStatus('Triggering payout...');
+      const tx = await contract.triggerPayout();
+      
+      setTransactionStatus('Transaction sent. Waiting for confirmation...');
+      await tx.wait();
+      
+      setTransactionStatus('Payout received successfully!');
+      setHasActivePolicy(false);
+      setInsuranceAmount(0);
+      
+      // Update balances
+      const balance = await provider.getBalance(walletAddress);
+      setEthBalance(Number(ethers.formatEther(balance)));
+      const contractBal = await contract.getContractBalance();
+      setContractBalance(Number(ethers.formatEther(contractBal)));
+      
+    } catch (e: any) {
+      console.error('Payout trigger error:', e);
+      let errorMessage = 'Unknown error';
+      
+      if (e.reason) {
+        errorMessage = e.reason;
+      } else if (e.message) {
+        if (e.message.includes('user rejected')) {
+          errorMessage = 'Transaction rejected by user';
+        } else if (e.message.includes('No active policy')) {
+          errorMessage = 'No active policy found';
+        } else if (e.message.includes('Flood level below threshold')) {
+          errorMessage = 'Flood level below threshold';
+        } else {
+          errorMessage = e.message;
+        }
+      }
+      
+      setTransactionStatus(`Payout failed: ${errorMessage}`);
+    }
+    
+    setIsLoading(false);
+    setTimeout(() => setTransactionStatus(''), 10000);
   };
 
   const roleStatuses = [
@@ -108,6 +273,18 @@ export default function InsuracleDashboard({ setUserType }: InsuracleDashboardPr
 
 
         <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-8 shadow-2xl">
+          
+          {networkError && (
+            <div className="mb-6 bg-red-500/20 border border-red-400/30 rounded-lg p-4">
+              <div className="flex items-center">
+                <AlertCircle className="h-5 w-5 text-red-400 mr-3" />
+                <div>
+                  <p className="text-red-200 font-semibold">Wrong Network</p>
+                  <p className="text-red-300 text-sm">Please connect to Hardhat network (localhost:8545, Chain ID: 31337)</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -161,6 +338,25 @@ export default function InsuracleDashboard({ setUserType }: InsuracleDashboardPr
                     <p className="text-white"><span className="text-green-300">Premium:</span> {premium.toFixed(1)} ETH</p>
                     <p className="text-white"><span className="text-green-300">Coverage:</span> {policyAmount.toFixed(1)} ETH</p>
                     <p className="text-white"><span className="text-green-300">Status:</span> Active</p>
+                    {floodLevel >= 3000 && (
+                      <div className="mt-4">
+                        <button
+                          onClick={handleTriggerPayout}
+                          disabled={isLoading}
+                          className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
+                        >
+                          {isLoading ? (
+                            <div className="flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Claiming...
+                            </div>
+                          ) : (
+                            '💰 Claim Insurance Payout'
+                          )}
+                        </button>
+                        <p className="text-red-300 text-sm mt-2">⚠️ Emergency conditions met - claim your payout!</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -242,17 +438,23 @@ export default function InsuracleDashboard({ setUserType }: InsuracleDashboardPr
           {transactionStatus && (
             <div className="mt-6">
               <div className={`flex items-center p-4 rounded-lg ${
-                transactionStatus.includes('successful') 
+                transactionStatus.includes('successful') || transactionStatus.includes('received') 
                   ? 'bg-green-500/20 border border-green-400/30' 
+                  : transactionStatus.includes('failed') || transactionStatus.includes('Error') || transactionStatus.includes('Wrong')
+                  ? 'bg-red-500/20 border border-red-400/30'
                   : 'bg-blue-500/20 border border-blue-400/30'
               }`}>
-                {transactionStatus.includes('successful') ? (
+                {transactionStatus.includes('successful') || transactionStatus.includes('received') ? (
                   <CheckCircle className="h-5 w-5 text-green-400 mr-3" />
+                ) : transactionStatus.includes('failed') || transactionStatus.includes('Error') || transactionStatus.includes('Wrong') ? (
+                  <AlertCircle className="h-5 w-5 text-red-400 mr-3" />
                 ) : (
                   <AlertCircle className="h-5 w-5 text-blue-400 mr-3" />
                 )}
                 <span className={`font-medium ${
-                  transactionStatus.includes('successful') ? 'text-green-200' : 'text-blue-200'
+                  transactionStatus.includes('successful') || transactionStatus.includes('received') ? 'text-green-200' 
+                  : transactionStatus.includes('failed') || transactionStatus.includes('Error') || transactionStatus.includes('Wrong') ? 'text-red-200'
+                  : 'text-blue-200'
                 }`}>
                   {transactionStatus}
                 </span>
