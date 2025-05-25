@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,11 +59,11 @@ const Index = () => {
   };
 
   if (userType === "individual") {
-    return <InsuracleDashboard setUserType={setUserType} />;
+    return <InsuracleDashboard setUserType={setUserType as unknown as (userType: string) => void} />;
   }
 
   if (userType === "company") {
-    return <InsuracleDashboardAdmin setUserType={setUserType} />;
+    return <InsuracleDashboardAdmin setUserType={setUserType as unknown as (userType: string) => void} />;
   }
 
   return (
@@ -192,7 +191,7 @@ const Index = () => {
                 className="w-full bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white text-lg py-6"
               >
                 <Building2 className="mr-2 h-5 w-5" />
-                Access Business Portal
+                Admin Dashboard
               </Button>
               <div className="mt-4 text-white/80 text-sm">
                 • API access • Risk analytics • White-label solutions

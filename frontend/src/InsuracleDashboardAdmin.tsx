@@ -23,6 +23,67 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
   const [isUpdatingFlood, setIsUpdatingFlood] = useState(false);
   const [isFunding, setIsFunding] = useState(false);
   const [hasActivePolicy, setHasActivePolicy] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [walletChecked, setWalletChecked] = useState(false);
+
+  const handleConnectWallet = async () => {
+    if (!window.ethereum) {
+      setTransactionStatus('MetaMask not detected. Please install MetaMask.');
+      return;
+    }
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      if (!accounts || accounts.length === 0) {
+        setTransactionStatus('Please connect your wallet to use the admin dashboard.');
+        setIsAdmin(false);
+        setWalletChecked(true);
+        return;
+      }
+      setWalletAddress(accounts[0]);
+      const adminAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'.toLowerCase();
+      if (accounts[0].toLowerCase() === adminAddress) {
+        setIsAdmin(true);
+        setTransactionStatus('');
+      } else {
+        setIsAdmin(false);
+        setTransactionStatus('You must be connected as the admin to access this dashboard.');
+      }
+      setWalletChecked(true);
+    } catch (e) {
+      setTransactionStatus('Error checking wallet connection.');
+      setIsAdmin(false);
+      setWalletChecked(true);
+      return;
+    }
+  };
+
+  useEffect(() => {
+    // Listen for account changes in MetaMask
+    if (window.ethereum && window.ethereum.on) {
+      const handleAccountsChanged = (accounts: string[]) => {
+        if (!accounts || accounts.length === 0) {
+          setIsAdmin(false);
+          setTransactionStatus('Please connect your wallet to use the admin dashboard.');
+          setWalletChecked(false);
+        } else {
+          setWalletAddress(accounts[0]);
+          const adminAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'.toLowerCase();
+          if (accounts[0].toLowerCase() === adminAddress) {
+            setIsAdmin(true);
+            setTransactionStatus('');
+          } else {
+            setIsAdmin(false);
+            setTransactionStatus('You must be connected as the admin to access this dashboard.');
+          }
+          setWalletChecked(true);
+        }
+      };
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      return () => {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      };
+    }
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -56,6 +117,26 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
       }
     };
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    const fetchAdminStatus = async () => {
+      if (window.ethereum) {
+        try {
+          await switchToLocalNetwork();
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const accounts = await provider.send('eth_requestAccounts', []);
+          const contract = new ethers.Contract(PARAMIFY_ADDRESS, PARAMIFY_ABI, provider);
+          // Assume contract has a public 'hasRole' method and ADMIN_ROLE constant
+          const ADMIN_ROLE = ethers.id('ADMIN_ROLE');
+          const isAdmin = await contract.hasRole(ADMIN_ROLE, accounts[0]);
+          setIsAdmin(isAdmin);
+        } catch (e) {
+          setIsAdmin(false);
+        }
+      }
+    };
+    fetchAdminStatus();
   }, []);
 
   const calculatePremium = (coverage: number) => coverage * 0.1;
@@ -266,6 +347,44 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
     { name: 'Insurance Admin', status: true }
   ];
 
+  // Only show admin dashboard if isAdmin is true
+  if (!walletChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+        <div className="bg-black/70 p-8 rounded-lg shadow-lg text-center">
+          <h2 className="text-2xl font-bold text-white mb-4">Admin Dashboard</h2>
+          <p className="text-white/80 mb-2">Please connect your wallet to continue.</p>
+          <button
+            onClick={handleConnectWallet}
+            className="mt-4 px-6 py-2 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg font-semibold hover:from-purple-600 hover:to-blue-600 transition-all"
+          >
+            Connect Wallet
+          </button>
+          {transactionStatus && (
+            <div className="mt-4 text-red-400">{transactionStatus}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+        <div className="bg-black/70 p-8 rounded-lg shadow-lg text-center">
+          <h2 className="text-2xl font-bold text-white mb-4">Access Denied</h2>
+          <p className="text-white/80 mb-2">You must be connected as the admin to access this dashboard.</p>
+          <p className="text-white/60 text-sm mb-4">Admin address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266</p>
+          <button
+            onClick={() => setUserType && setUserType(null)}
+            className="mt-4 px-6 py-2 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg font-semibold hover:from-purple-600 hover:to-blue-600 transition-all"
+          >
+            Return Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
       <div className="max-w-2xl mx-auto">
@@ -347,41 +466,40 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
             <div className="space-y-4">
               <div className={`rounded-lg p-6 ${floodLevel >= threshold ? 'bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-400/30' : 'bg-gradient-to-r from-blue-500/20 to-purple-500/20'}`}>
                 <div className="text-center">
-                  <div className={`text-3xl font-bold mb-2 ${floodLevel >= threshold ? 'text-red-300' : 'text-white'}`}>
-                    {floodLevel.toFixed(1)} units
-                  </div>
+                  <div className={`text-3xl font-bold mb-2 ${floodLevel >= threshold ? 'text-red-300' : 'text-white'}`}>{floodLevel.toFixed(1)} units</div>
                   <div className="text-gray-300">(Threshold: {threshold.toFixed(1)})</div>
                   {floodLevel >= threshold && (
                     <div className="mt-2 text-red-300 font-semibold">⚠️ THRESHOLD EXCEEDED</div>
                   )}
                 </div>
               </div>
-              
-              <div className="bg-black/20 rounded-lg p-4">
-                <div className="space-y-3">
-                  <input
-                    type="number"
-                    value={newFloodLevel}
-                    onChange={(e) => setNewFloodLevel(e.target.value)}
-                    className="w-full bg-black/30 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="New flood level"
-                  />
-                  <button
-                    onClick={handleUpdateFloodLevel}
-                    disabled={isUpdatingFlood || !newFloodLevel}
-                    className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
-                  >
-                    {isUpdatingFlood ? (
-                      <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Updating...
-                      </div>
-                    ) : (
-                      'Update Flood Level'
-                    )}
-                  </button>
+              {isAdmin && (
+                <div className="bg-black/20 rounded-lg p-4 mt-2">
+                  <div className="space-y-3">
+                    <input
+                      type="number"
+                      value={newFloodLevel}
+                      onChange={(e) => setNewFloodLevel(e.target.value)}
+                      className="w-full bg-black/30 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="New flood level"
+                    />
+                    <button
+                      onClick={handleUpdateFloodLevel}
+                      disabled={isUpdatingFlood || !newFloodLevel}
+                      className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
+                    >
+                      {isUpdatingFlood ? (
+                        <div className="flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Updating...
+                        </div>
+                      ) : (
+                        'Update Flood Level'
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -473,35 +591,40 @@ export default function InsuracleDashboardAdmin({ setUserType }: ParamifyDashboa
                 <p className="text-white font-bold text-lg">{contractBalance.toFixed(1)} ETH</p>
               </div>
             </div>
-            
-            <div className="bg-black/20 rounded-lg p-4">
-              <div className="space-y-3">
-                <input
-                  type="number"
-                  value={fundAmount}
-                  onChange={(e) => setFundAmount(e.target.value)}
-                  className="w-full bg-black/30 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                  placeholder="Fund amount (ETH)"
-                />
-                <button
-                  onClick={handleFundContract}
-                  disabled={isFunding || !fundAmount || parseFloat(fundAmount) <= 0}
-                  className="w-full bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
-                >
-                  {isFunding ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Funding...
-                    </div>
-                  ) : (
-                    'Fund Contract'
-                  )}
-                </button>
-              </div>
-            </div>
           </div>
 
    
+          {isAdmin && (
+            <>
+              <div className="bg-black/20 rounded-lg p-4 mb-8">
+                <div className="space-y-3">
+                  <input
+                    type="number"
+                    value={fundAmount}
+                    onChange={(e) => setFundAmount(e.target.value)}
+                    className="w-full bg-black/30 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                    placeholder="Fund amount (ETH)"
+                  />
+                  <button
+                    onClick={handleFundContract}
+                    disabled={isFunding || !fundAmount || parseFloat(fundAmount) <= 0}
+                    className="w-full bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:transform-none"
+                  >
+                    {isFunding ? (
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Funding...
+                      </div>
+                    ) : (
+                      'Fund Contract'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Always show roles section */}
           <div className="mb-8">
             <h3 className="text-xl font-semibold text-white mb-4">Roles</h3>
             <div className="space-y-3">

@@ -237,12 +237,6 @@ export default function InsuracleDashboard({ setUserType }: InsuracleDashboardPr
     setTimeout(() => setTransactionStatus(''), 10000);
   };
 
-  const roleStatuses = [
-    { name: 'Admin', status: false },
-    { name: 'Oracle Updater', status: false },
-    { name: 'Insurance Admin', status: false }
-  ];
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
       <div className="max-w-2xl mx-auto">
@@ -418,22 +412,6 @@ export default function InsuracleDashboard({ setUserType }: InsuracleDashboardPr
               </div>
             </div>
           </div>
-
- 
-          <div className="mb-8">
-            <h3 className="text-xl font-semibold text-white mb-4">Roles</h3>
-            <div className="space-y-3">
-              {roleStatuses.map((role, index) => (
-                <div key={index} className="flex justify-between items-center bg-black/20 rounded-lg p-4">
-                  <span className="text-white font-medium">{role.name}</span>
-                  <span className="text-red-400 font-semibold">
-                    {role.status ? 'Yes' : 'No'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
 
           {transactionStatus && (
             <div className="mt-6">
