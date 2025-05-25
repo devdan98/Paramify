@@ -1,5 +1,8 @@
 # Paramify: Decentralized Flood Insurance Proof of Concept
 
+<img width="1120" alt="image" src="https://github.com/user-attachments/assets/ad6f409e-fb67-4b6a-8ceb-b9b61aa4e336" />
+
+
 ## Overview
 
 **Paramify** is a proof of concept (PoC) for a decentralized flood insurance platform built on Ethereum, demonstrating automated insurance purchases and payouts triggered by flood level data from a Chainlink-compatible oracle. This PoC showcases a smart contract (`Paramify.sol`) that allows users to buy flood insurance policies and claim payouts when flood levels exceed a predefined threshold, with role-based access control for secure administration.
